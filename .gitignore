@@ -1,0 +1,4 @@
+# QA output: screenshots and reports, ~150 MB and regenerable
+qa/
+node_modules/
+*.log

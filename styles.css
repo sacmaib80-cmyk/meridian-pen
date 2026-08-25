@@ -1,0 +1,811 @@
+/* MERIDIAN ONE — visual system.
+ *
+ * ONE typeface. Archivo variable carries the whole page on two axes, weight and
+ * width, which is where the variety comes from instead of a second family.
+ *
+ * ONE accent. The brass of the engraved band is the only chromatic note on the
+ * page, and the ink the pen lays down is that same colour. The cool light in the
+ * frame is never a UI colour: it only ever appears as a reflection on metal.
+ *
+ * The type scale has a deliberate hole in it. Nothing is set between 17px and
+ * 54px. Small type is information, large type is the voice, and there is no
+ * comfortable middle for a headline to sag into.
+ */
+
+@font-face {
+  font-family: "Archivo";
+  src: url("./assets/fonts/Archivo-Variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-display: swap;
+}
+
+:root {
+  --void: #07070a;
+  --ink: #efeae2;
+  --dim: rgba(239, 234, 226, 0.40);
+  --faint: rgba(239, 234, 226, 0.16);
+  --brass: #e3a75c;
+  --brass-dim: rgba(227, 167, 92, 0.52);
+  --line: rgba(239, 234, 226, 0.10);
+
+  --t-micro: 10.5px;
+  --t-small: 13px;
+  --t-body: clamp(15px, 1.02vw, 17px);
+  /* deliberate gap */
+  --t-title: clamp(2.9rem, 6.6vw, 6.8rem);
+  --t-hero: clamp(4.0rem, 13.2vw, 15rem);
+
+  --edge: clamp(22px, 4.4vw, 86px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;              /* the page owns its own scroll */
+  overscroll-behavior: none;
+  background: var(--void);
+}
+
+body {
+  font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  font-size: var(--t-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Dragging on the canvas or the pad would otherwise sweep a text selection
+   across the interface, which highlighted the live readout in system blue. */
+#stage, #pad, .chrome, .rail, #hint, #labels, .eyebrow, h1, h2, .meta, .figure, .pad-readout {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (pointer: fine) {
+  body, a, button { cursor: none; }
+}
+
+/* ------------------------------------------------------------------- layers */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 1;
+  touch-action: none;
+}
+
+
+/* Directional shade instead of a card: keeps copy legible without putting the
+   instrument back inside a box. */
+.shade {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(97deg,
+      rgba(7, 7, 10, 0.90) 0%,
+      rgba(7, 7, 10, 0.72) 22%,
+      rgba(7, 7, 10, 0.28) 44%,
+      rgba(7, 7, 10, 0.02) 62%,
+      transparent 76%);
+  transition: opacity .5s ease;
+}
+body[data-chapter="5"] .shade { transform: scaleX(-1); }
+
+body.portrait .shade {
+  background: linear-gradient(2deg,
+      rgba(7, 7, 10, 0.96) 0%,
+      rgba(7, 7, 10, 0.86) 34%,
+      rgba(7, 7, 10, 0.44) 58%,
+      transparent 84%) !important;
+  transform: none !important;
+}
+
+#scroller {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------- chapters */
+
+/* Chapters are centred by transform rather than by a fixed margin, so a title
+   that wraps to three lines grows in both directions instead of pushing its own
+   body copy down into the corner chrome. The enter/exit offset arrives as --o
+   so it can compose with the centring instead of replacing it. */
+.chapter {
+  position: fixed;
+  left: var(--edge);
+  top: 50%;
+  width: min(44ch, 40vw);
+  transform: translate3d(0, calc(-50% + var(--o, 0px)), 0);
+  opacity: 0;
+  will-change: opacity, transform;
+  pointer-events: none;
+}
+
+/* Portrait splits the frame rather than stacking things on top of each other:
+   the instrument gets the upper field, the copy gets the lower one, and the
+   copy is capped so it cannot grow back up into the instrument. */
+body.portrait .chapter {
+  left: var(--edge);
+  right: var(--edge);
+  width: auto;
+  top: auto;
+  bottom: clamp(70px, 11vh, 120px);
+  max-height: 58vh;
+  transform: translate3d(0, var(--o, 0px), 0);
+}
+body.portrait #pad { height: clamp(120px, 17vh, 170px); margin-top: 1.4rem; }
+body.portrait .chapter p { margin-top: 1.2rem; }
+body.portrait .spec div { padding: .48rem 0; }
+
+.chapter[data-c="5"] { left: auto; right: var(--edge); }
+body.portrait .chapter[data-c="5"] { left: var(--edge); right: var(--edge); }
+
+/* The finale was centred, which put the headline and the price directly on top
+   of the instrument. It keeps the left column like every other chapter and lets
+   the pen own the right of the frame instead. */
+.chapter[data-c="7"] { width: min(40ch, 38vw); }
+
+.eyebrow {
+  font-size: var(--t-small);
+  font-weight: 500;
+  font-stretch: 88%;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin: 0 0 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+}
+.eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--brass-dim), transparent);
+  max-width: 120px;
+}
+
+
+h1, h2 {
+  margin: 0;
+  font-weight: 700;
+  font-stretch: 96%;
+  line-height: .88;
+  letter-spacing: -0.035em;
+}
+
+h1.hero-title {
+  font-size: var(--t-hero);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: .84;
+}
+h1.hero-title .one {
+  display: block;
+  font-size: 0.145em;
+  font-weight: 600;
+  font-stretch: 78%;
+  letter-spacing: .42em;
+  line-height: 1;
+  margin-top: 1.1em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+h2 { font-size: var(--t-title); }
+
+.chapter p {
+  margin: 1.7rem 0 0;
+  color: var(--dim);
+  max-width: 40ch;
+  line-height: 1.62;
+}
+
+
+/* figure: a single number set large enough to be read as evidence */
+.figure {
+  margin-top: 2.2rem;
+  display: flex;
+  align-items: baseline;
+  gap: .9rem;
+}
+.figure b {
+  font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+  font-weight: 300;
+  font-stretch: 74%;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.figure s {
+  text-decoration: none;
+  font-size: var(--t-small);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-stretch: 84%;
+}
+
+/* meta row under the hero */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2.2rem;
+  margin-top: 2.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--line);
+  font-size: var(--t-small);
+  font-stretch: 82%;
+  letter-spacing: .1em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.meta b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* spec table */
+.spec {
+  margin-top: 2rem;
+  border-top: 1px solid var(--line);
+  font-size: var(--t-small);
+  font-stretch: 86%;
+}
+.spec div {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: .62rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.spec dt { color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 0; }
+.spec dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+
+/* ------------------------------------------------------------------ pad */
+
+#pad {
+  margin-top: 2rem;
+  height: clamp(180px, 26vh, 280px);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  position: relative;
+  background:
+    linear-gradient(rgba(227, 167, 92, 0.035), rgba(227, 167, 92, 0));
+  pointer-events: auto;
+  touch-action: none;
+  overflow: hidden;
+}
+#pad::after {
+  content: "";
+  position: absolute;
+  left: 14px; right: 14px; top: 58%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(239,234,226,.09) 18%, rgba(239,234,226,.09) 82%, transparent);
+}
+#pad::before {
+  content: "Draw here";
+  position: absolute;
+  inset: auto auto 12px 14px;
+  font-size: var(--t-micro);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.pad-readout {
+  position: absolute;
+  top: 12px; right: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pad-readout b {
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 300;
+  font-stretch: 72%;
+  line-height: 1;
+  color: var(--brass);
+  letter-spacing: -.02em;
+}
+.pad-readout s {
+  text-decoration: none;
+  font-size: var(--t-micro);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pad-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: var(--faint);
+}
+.pad-bar i {
+  position: absolute;
+  inset: 0;
+  background: var(--brass);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+/* ------------------------------------------------------------------- CTA */
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2.2rem;
+  padding: 1.05rem 2.1rem;
+  border: 1px solid var(--brass-dim);
+  background: transparent;
+  color: var(--brass);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 600;
+  font-stretch: 88%;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 2px;
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+  transition: color .35s ease, border-color .35s ease;
+}
+.cta i {
+  position: absolute;
+  inset: 0;
+  background: var(--brass);
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform .42s cubic-bezier(.16, .84, .32, 1);
+  z-index: -1;
+}
+.cta span { position: relative; z-index: 1; }
+.cta:hover { color: #14100a; border-color: var(--brass); }
+.cta:hover i { transform: scaleY(1); }
+.cta:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+.price {
+  margin-top: 1.4rem;
+  font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+  font-weight: 300;
+  font-stretch: 76%;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+}
+.note { font-size: var(--t-small); color: var(--dim); margin-top: .9rem !important; }
+
+/* ------------------------------------------------------------------ chrome */
+
+.chrome {
+  position: fixed;
+  z-index: 6;
+  font-size: var(--t-micro);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--dim);
+  font-stretch: 84%;
+  pointer-events: none;
+}
+.chrome.tl { top: var(--edge); left: var(--edge); }
+.chrome.tr { top: var(--edge); right: var(--edge); text-align: right; }
+.chrome.bl { bottom: var(--edge); left: var(--edge); }
+
+.wordmark {
+  color: var(--ink);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: .34em;
+}
+
+#chapterNum { color: var(--brass); font-variant-numeric: tabular-nums; }
+
+/* the progress rail is drawn in the same ink the pen uses */
+.rail {
+  position: fixed;
+  right: calc(var(--edge) * 0.55);
+  top: 22vh;
+  bottom: 22vh;
+  width: 1px;
+  background: var(--faint);
+  z-index: 6;
+  pointer-events: none;
+}
+.rail i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--brass), rgba(227, 167, 92, .25));
+  transform-origin: 50% 0;
+  transform: scaleY(0);
+  box-shadow: 0 0 12px rgba(227, 167, 92, .45);
+}
+body.portrait .rail { display: none; }
+
+#hint {
+  position: fixed;
+  bottom: var(--edge);
+  right: var(--edge);
+  z-index: 6;
+  font-size: var(--t-micro);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--faint);
+  pointer-events: none;
+  transition: opacity .6s ease;
+}
+#hint.used { opacity: 0; }
+/* On a phone the credit line and the drag hint sit on the same baseline and
+   collide. The hint is the one that earns its space, so the credit stands down. */
+body.portrait .chrome.bl { display: none; }
+
+/* exploded-view labels track real projected part centres */
+#labels { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+.lbl {
+  position: absolute;
+  top: 0; left: 0;
+  opacity: 0;
+  white-space: nowrap;
+  padding-left: 26px;
+  transform: translate3d(-9999px, -9999px, 0);
+  will-change: transform, opacity;
+}
+.lbl i {
+  position: absolute;
+  left: 0; top: 50%;
+  width: 18px; height: 1px;
+  background: var(--brass-dim);
+}
+.lbl i::before {
+  content: "";
+  position: absolute;
+  left: -3px; top: -2px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--brass);
+}
+.lbl b {
+  display: block;
+  font-size: var(--t-small);
+  font-weight: 500;
+  font-stretch: 88%;
+  letter-spacing: .04em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.lbl s {
+  display: block;
+  text-decoration: none;
+  font-size: var(--t-micro);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* custom cursor: a nib, not a dot */
+#cursor {
+  position: fixed;
+  top: 0; left: 0;
+  z-index: 20;
+  pointer-events: none;
+  margin: -13px 0 0 -13px;
+  width: 26px; height: 26px;
+  opacity: .9;
+  transition: opacity .3s ease;
+}
+#cursor::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--brass-dim);
+  border-radius: 50%;
+  transition: transform .3s cubic-bezier(.16,.84,.32,1);
+}
+#cursor::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 3px; height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: var(--brass);
+}
+body.grabbing #cursor::before { transform: scale(1.75); }
+@media (pointer: coarse) { #cursor { display: none; } }
+
+/* loader */
+#veil {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--void);
+  display: grid;
+  place-items: center;
+  transition: opacity .9s ease .15s, visibility 0s linear 1.05s;
+}
+body:not(.is-loading) #veil { opacity: 0; visibility: hidden; }
+#veil span {
+  font-size: var(--t-small);
+  letter-spacing: .42em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.no-webgl-msg { display: none; }
+body.no-webgl .no-webgl-msg {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--void);
+  padding: var(--edge);
+  padding-top: 22vh;
+}
+body.no-webgl #stage, body.no-webgl .rail, body.no-webgl #hint { display: none; }
+
+.sr {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta i { transition: none; }
+  #cursor::before { transition: none; }
+  #veil { transition: opacity .2s linear; }
+}
+
+/* ---------------------------------------------------------- text reveal
+ * Letters rise out from behind a hard line edge. The stagger is a CSS
+ * transition-delay keyed off --i, not a JS animation, so it adds nothing to
+ * the render loop and cannot drift out of step with the scroll.
+ */
+.ln { display: block; }
+/* The mask sits on the word. Descenders would be clipped by it, so the box is
+   given room and the space is taken straight back with a negative margin. */
+.wd {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+.ch {
+  display: inline-block;
+  transform: translateY(115%);
+  transition: transform 0.98s cubic-bezier(.16, .84, .32, 1);
+  transition-delay: calc(var(--i, 0) * 26ms);
+  will-change: transform;
+}
+.chapter.in .ch { transform: translateY(0); }
+
+/* the eyebrow rule draws itself in */
+.eyebrow::after { transform: scaleX(0); transform-origin: 0 50%; transition: transform .9s cubic-bezier(.16,.84,.32,1) .1s; }
+.chapter.in .eyebrow::after { transform: scaleX(1); }
+
+/* supporting copy follows the headline rather than arriving with it */
+.chapter p, .figure, #pad, .cta, .price {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity .8s ease .30s, transform .8s cubic-bezier(.16,.84,.32,1) .30s;
+}
+.chapter.in p, .chapter.in .figure, .chapter.in #pad,
+.chapter.in .cta, .chapter.in .price { opacity: 1; transform: none; }
+
+/* spec rows and the hero meta wipe in one after another */
+.spec div, .meta span {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .55s ease, transform .55s cubic-bezier(.16,.84,.32,1);
+  transition-delay: calc(0.34s + var(--i, 0) * 42ms);
+}
+.chapter.in .spec div, .chapter.in .meta span { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ch, .chapter p, .figure, #pad, .cta, .price,
+  .spec div, .meta span, .eyebrow::after {
+    transition-duration: .01s;
+    transition-delay: 0s;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------- part inspector
+ * Deliberately NOT a floating rounded card with a blurred backdrop. That is
+ * the shape every generated UI reaches for, and it would be the only object
+ * on this page that does not belong to its typographic system.
+ *
+ * Instead it is a column ruled off the right edge with a hairline, set in the
+ * same two type sizes as everything else, with the brass appearing only where
+ * it already appears elsewhere: on an index and on a key.
+ */
+#partPanel {
+  position: fixed;
+  z-index: 12;
+  top: 0; right: 0;
+  width: min(374px, 32vw);
+  height: 100%;
+  padding: clamp(26px, 4vh, 54px) var(--edge) clamp(26px, 4vh, 54px) clamp(22px, 2.4vw, 34px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(7,7,10,0) 0%, rgba(7,7,10,.80) 22%, rgba(7,7,10,.94) 60%);
+  opacity: 0;
+  transform: translate3d(26px, 0, 0);
+  pointer-events: none;
+  /* visibility, not just opacity. A full-height fixed element with a gradient
+   * still gets a compositor layer at opacity 0, and at a 4K backing store that
+   * layer measured 11 ms a frame while the panel was closed. Delaying the
+   * visibility switch until the fade has finished keeps the transition. */
+  visibility: hidden;
+  transition: opacity .5s ease, transform .6s cubic-bezier(.16,.84,.32,1),
+              visibility 0s linear .6s;
+}
+#partPanel[aria-hidden="false"] {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+  transition: opacity .5s ease, transform .6s cubic-bezier(.16,.84,.32,1),
+              visibility 0s linear 0s;
+}
+
+#partClose {
+  position: absolute;
+  top: clamp(18px, 3vh, 34px);
+  right: clamp(18px, 2vw, 30px);
+  width: 34px; height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color .25s ease, border-color .25s ease;
+}
+#partClose svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+#partClose:hover, #partClose:focus-visible { color: var(--ink); border-color: var(--brass-dim); }
+
+.pp-idx {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+#partPanel h3 {
+  margin: 0;
+  font-size: clamp(28px, 2.5vw, 38px);
+  font-weight: 500;
+  font-stretch: 84%;
+  letter-spacing: -.015em;
+  line-height: 1.06;
+}
+.pp-sub {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pp-body {
+  margin: 6px 0 0;
+  font-size: var(--t-small);
+  line-height: 1.66;
+  color: rgba(239, 234, 226, .74);
+}
+
+.pp-spec { margin: 10px 0 0; display: grid; gap: 0; }
+.pp-spec > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.pp-spec > div:last-child { border-bottom: 1px solid var(--line); }
+.pp-spec dt {
+  font-size: var(--t-micro);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pp-spec dd {
+  margin: 0;
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.pp-hint {
+  margin: 14px 0 0;
+  font-size: var(--t-micro);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: rgba(239, 234, 226, .34);
+}
+.pp-hint b { font-weight: 500; color: var(--brass-dim); }
+
+/* The exploded view has to say it is clickable before anyone tries. It shows
+   only on that chapter, and it retires the moment a part is opened. */
+#pickHint {
+  position: fixed;
+  z-index: 6;
+  left: 50%;
+  bottom: clamp(26px, 5vh, 62px);
+  transform: translate3d(-50%, 8px, 0);
+  font-size: var(--t-micro);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: rgba(239, 234, 226, .40);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .5s ease, transform .5s cubic-bezier(.16,.84,.32,1);
+}
+body[data-chapter="4"] #pickHint { opacity: 1; transform: translate3d(-50%, 0, 0); }
+body.inspecting #pickHint { opacity: 0; }
+
+/* labels become the touch-sized way in, so they take pointer events back */
+body[data-chapter="4"] #labels { pointer-events: none; }
+body[data-chapter="4"] .lbl { pointer-events: auto; cursor: pointer; }
+.lbl:focus-visible { outline: 1px solid var(--brass-dim); outline-offset: 4px; }
+body.inspecting .lbl { pointer-events: none; }
+
+/* over a part the nib cursor opens up and fills, so the affordance is the
+   cursor itself rather than a tooltip that would cover the thing it names */
+body.over-part #cursor::before { transform: scale(1.55); border-color: var(--brass); }
+body.over-part #cursor::after { transform: scale(1.9); }
+#cursor::after { transition: transform .3s cubic-bezier(.16,.84,.32,1); }
+
+@media (max-width: 860px) {
+  #partPanel {
+    /* bottom must be pinned explicitly: the base rule sets top:0 and clearing
+     * it alone leaves a fixed element at its static position, which put the
+     * sheet against the TOP of the screen. */
+    top: auto; bottom: 0; right: 0; left: 0;
+    width: 100%;
+    height: auto;
+    max-height: 58vh;
+    overflow-y: auto;
+    padding: 22px var(--edge) calc(22px + env(safe-area-inset-bottom, 0px));
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(7,7,10,0) 0%, rgba(7,7,10,.90) 14%, rgba(7,7,10,.97) 40%);
+    transform: translate3d(0, 26px, 0);
+    gap: 9px;
+  }
+  #partPanel h3 { font-size: 26px; }
+  .pp-body { font-size: 12.5px; line-height: 1.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #partPanel, #pickHint { transition-duration: .01s; }
+}
+
+/* While a part is open the chapter copy steps back rather than disappearing:
+   it is still the sentence that explains what the eleven pieces are, and the
+   visitor is one Escape away from it. */
+body.inspecting #scroller { opacity: .14; }
+#scroller { transition: opacity .55s ease; }
+body.inspecting .chapter { pointer-events: none !important; }
+@media (prefers-reduced-motion: reduce) { #scroller { transition-duration: .01s; } }
+/* the page furniture recedes with the copy: in portrait the part is lifted
+   into the upper field, which is exactly where the wordmark lives */
+body.inspecting .chrome, body.inspecting .rail { opacity: .22; }
+.chrome, .rail { transition: opacity .55s ease; }

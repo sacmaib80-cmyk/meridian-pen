@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#07070a" />
+<title>Meridian One — digital pen</title>
+<meta name="description" content="Meridian One is a digital pen with 8192 pressure levels and two millisecond latency, machined from 6061 aluminium. Scroll to turn it." />
+<meta property="og:title" content="Meridian One — digital pen" />
+<meta property="og:description" content="8192 levels. Two milliseconds. Turned from a single billet." />
+<link rel="icon" href="data:," />
+<link rel="preload" href="./assets/fonts/Archivo-Variable.ttf" as="font" type="font/ttf" crossorigin />
+<link rel="stylesheet" href="./styles.css?v=1" />
+</head>
+<body class="is-loading">
+
+<div id="veil"><span>Meridian</span></div>
+
+<canvas id="stage" aria-label="Interactive three dimensional view of the Meridian One pen. Scroll to rotate it, drag to turn it by hand."></canvas>
+
+<div class="shade" aria-hidden="true"></div>
+<div id="labels" aria-hidden="true"></div>
+
+<main id="scroller">
+
+  <!-- 0 ................................................................. -->
+  <section class="chapter" data-c="0" data-name="Overview">
+    <p class="eyebrow">Digital pen &middot; MRD&#8209;01</p>
+    <h1 class="hero-title">Meridian<span class="one">One</span></h1>
+    <p>Two milliseconds from the tip touching glass to the ink appearing under it,
+       and eight thousand levels of weight in between.</p>
+    <div class="meta">
+      <span><b>8192</b> levels</span>
+      <span><b>60&deg;</b> tilt</span>
+      <span><b>2 ms</b> latency</span>
+      <span><b>14 g</b> mass</span>
+    </div>
+  </section>
+
+  <!-- 1 ................................................................. -->
+  <section class="chapter" data-c="1" data-name="The line">
+    <p class="eyebrow">01 &nbsp;/&nbsp; The line</p>
+    <h2>Two<br />milliseconds</h2>
+    <p>That is the whole distance between your hand deciding and the screen agreeing.
+       At this speed the eye stops reporting a delay, and the stroke reads as something
+       that was already on the page before you moved.</p>
+    <div class="figure"><b>2.0</b><s>ms, nib to ink</s></div>
+  </section>
+
+  <!-- 2 ................................................................. -->
+  <section class="chapter" data-c="2" data-name="Material">
+    <p class="eyebrow">02 &nbsp;/&nbsp; Material</p>
+    <h2>Cut,<br />not coated</h2>
+    <p>The grip is knurled directly into 6061 aluminium on a lathe and then hard
+       anodised. Nothing is bonded on top of it, so there is no rubber sleeve to
+       turn tacky in a warm room and no coating to wear through at the one spot
+       your finger actually rests.</p>
+    <div class="figure"><b>0.18</b><s>mm knurl depth</s></div>
+  </section>
+
+  <!-- 3 ................................................................. -->
+  <section class="chapter" data-c="3" data-name="Inside">
+    <p class="eyebrow">03 &nbsp;/&nbsp; Inside</p>
+    <h2>Open<br />it up</h2>
+    <p>A wedge of the barrel is cut away here so you can see what you are paying for:
+       the sensor stack behind the tip, the board, the cell, and the port. Nothing in
+       this view is a drawing of the inside. It is the inside.</p>
+    <div class="figure"><b>4</b><s>modules in the barrel</s></div>
+  </section>
+
+  <!-- 4 ................................................................. -->
+  <section class="chapter" data-c="4" data-name="Assembly">
+    <p class="eyebrow">04 &nbsp;/&nbsp; Assembly</p>
+    <h2>Eleven<br />pieces</h2>
+    <p>Seven of them come apart with the one tool in the box. The four sealed modules
+       do not, and are not meant to. We stock the tip, the grip and the clip on their
+       own, because those are the three pieces people actually manage to destroy.</p>
+    <div class="figure"><b>7</b><s>of 11 user serviceable</s></div>
+  </section>
+
+  <!-- 5 ................................................................. -->
+  <section class="chapter" data-c="5" data-name="Pressure">
+    <p class="eyebrow">05 &nbsp;/&nbsp; Pressure</p>
+    <h2>Draw<br />on it</h2>
+    <p>Slow down and the line puts more ink on the page, the way a real nib does when
+       it turns a corner. This is the response curve the pen ships with, running live.</p>
+    <div id="pad">
+      <div class="pad-readout"><b id="padLevel">0000</b><s>of 8192</s></div>
+      <div class="pad-bar"><i id="padPeak"></i></div>
+    </div>
+  </section>
+
+  <!-- 6 ................................................................. -->
+  <section class="chapter" data-c="6" data-name="Specifications">
+    <p class="eyebrow">06 &nbsp;/&nbsp; Specifications</p>
+    <h2>Numbers</h2>
+    <dl class="spec">
+      <div><dt>Pressure levels</dt><dd>8192</dd></div>
+      <div><dt>Tilt range</dt><dd>60&deg;</dd></div>
+      <div><dt>Report rate</dt><dd>240 Hz</dd></div>
+      <div><dt>Latency</dt><dd>2 ms</dd></div>
+      <div><dt>Body</dt><dd>6061 aluminium</dd></div>
+      <div><dt>Length</dt><dd>152 mm</dd></div>
+      <div><dt>Mass</dt><dd>14 g</dd></div>
+      <div><dt>Charge</dt><dd>USB&#8209;C, 45 min</dd></div>
+      <div><dt>Battery</dt><dd>14 h active</dd></div>
+      <div><dt>Warranty</dt><dd>2 years</dd></div>
+    </dl>
+  </section>
+
+  <!-- 7 ................................................................. -->
+  <section class="chapter" data-c="7" data-name="Order">
+    <p class="eyebrow">07 &nbsp;/&nbsp; Order</p>
+    <h2>Meridian One</h2>
+    <div class="price">THB 6,900</div>
+    <a class="cta" href="#order-form"><i></i><span>Reserve one</span></a>
+    <p class="note">First run of 500, machined in batches of 50.
+       Reserve now and pay when yours is cut.</p>
+  </section>
+
+</main>
+
+<div class="chrome tl"><span class="wordmark">MERIDIAN</span></div>
+<div class="chrome tr"><span id="chapterNum">01</span> &nbsp;<span id="chapterName">Overview</span></div>
+<div class="chrome bl">Bangkok &middot; 2026</div>
+<div class="rail" aria-hidden="true"><i id="railFill"></i></div>
+<div id="hint">Scroll to turn &nbsp;&middot;&nbsp; drag to hold</div>
+<div id="cursor" aria-hidden="true"></div>
+
+<!-- Part inspector. Filled from PARTS in app.js so the copy has one home. -->
+<aside id="partPanel" aria-hidden="true" aria-live="polite">
+  <button id="partClose" type="button" aria-label="Close part detail">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <p class="pp-idx" id="ppIdx">Part 01 / 11</p>
+  <h3 id="ppName">&nbsp;</h3>
+  <p class="pp-sub" id="ppSub">&nbsp;</p>
+  <p class="pp-body" id="ppBody">&nbsp;</p>
+  <dl class="pp-spec" id="ppSpec"></dl>
+  <p class="pp-hint"><b>Drag</b> to turn it &nbsp;&middot;&nbsp; <b>Esc</b> or scroll to go back</p>
+</aside>
+<div id="pickHint" aria-hidden="true">Click a part to inspect it</div>
+
+<div class="no-webgl-msg">
+  <h2>Meridian One</h2>
+  <p>This page renders the pen live with WebGL 2, which this browser did not provide.
+     The specifications are unchanged: 8192 pressure levels, 60&deg; tilt, 2 ms latency,
+     6061 aluminium, 152 mm, 14 g.</p>
+</div>
+
+<p class="sr">Meridian One is a digital pen with 8192 pressure levels, 60 degree tilt
+   detection, 2 millisecond latency, a 6061 aluminium body, 152 mm length and 14 g mass.
+   Price 6,900 THB.</p>
+
+<script src="./js/pen-geometry.js?v=1"></script>
+<script src="./js/shaders.js?v=1"></script>
+<script src="./js/env.js?v=1"></script>
+<script src="./js/renderer.js?v=1"></script>
+<script src="./js/ink.js?v=1"></script>
+<script src="./js/app.js?v=1"></script>
+</body>
+</html>
