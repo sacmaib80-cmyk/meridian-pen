@@ -10,6 +10,16 @@
   "use strict";
 
   var TAU = Math.PI * 2;
+  /* Inspector supersampling. Not a fixed number: it is what the machine turns
+   * out to be able to hold. Measured on the target GT 710, 1.4 and 1.6 both sit
+   * at 16.7 ms with zero jank and 1.75 falls off a cliff to 26-31 ms, so a
+   * hard 2.0 would have shipped a stutter to this machine and left a faster one
+   * under-using its budget. It starts low and climbs while there is headroom. */
+  /* Quantised on purpose. The backing store is reallocated whenever its pixel
+   * size changes, so a controller that creeps by hundredths would rebuild every
+   * render target every frame; a ladder only pays that on a step change. */
+  var SUPER_STEPS = [1.0, 1.15, 1.3, 1.45, 1.6, 1.8, 2.0, 2.2];
+  var SUPER_START_STEP = 2;      // 1.3, low enough not to spike on open
 
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -172,6 +182,16 @@
     this.autoSpin = true;
     this.exitAccum = 0;
     this._lastPick = 0;
+    this.superStep = SUPER_START_STEP;
+    this.superMix = 0;
+    /* Once a step has been shown to be too much, it is never tried again.
+     * Without this the controller ping-pongs: it steps up, the reallocation
+     * of every render target spikes one frame, that spike reads as overload,
+     * it steps back down, and the cycle repeats forever. */
+    this.superCeil = SUPER_STEPS.length - 1;
+    this.superRetries = 2;         // how many times the ceiling may re-open
+    this.superNow = SUPER_STEPS[SUPER_START_STEP];
+    this.superHold = 0;
 
     this.ready = false;
     this.error = null;
@@ -528,6 +548,8 @@
     this._lastSel = k;
     this.selTarget = 1;
     this.exitAccum = 0;
+    this.superHold = 0;
+    this.frameTimes.length = 0;
     this.autoSpin = true;
     this.spin = 0;
     /* Start the turntable from wherever the visitor was already looking, so
@@ -635,6 +657,7 @@
     pose.soloPart = -1;
     pose.soloMix = 0;
     pose.exposure = 1;
+    pose.detail = 0;
 
     /* ---- inspector -------------------------------------------------------
      * Everything above still runs: the chapter pose is the state the inspector
@@ -699,6 +722,7 @@
       pose.dust *= (1 - m * 0.6);
       pose.knurl = lerp(pose.knurl, 0.24, m);   // a little deeper when this close
       pose.exposure = 1 + 0.40 * m;
+      pose.detail = m;
 
       for (var s = 0; s < 11; s++) {
         if (s === k) {
@@ -926,6 +950,19 @@
     /* adaptive resolution: drop while the scroll is fast, restore before it settles */
     var fastness = clamp(this.velocity / 220, 0, 1);
     var wanted = this.perfScale * (1 - fastness * 0.28);
+    /* Supersample the inspector. Only one part of eleven is being drawn, so
+     * the fragment cost of the scene collapses and there is budget to render
+     * above the display and downsample. This is what actually puts the detail
+     * back: raising dprCap does nothing on a DPR-1 screen, because the page
+     * takes min(cap, devicePixelRatio). */
+    /* The extra resolution waits until the camera has ARRIVED. Ramping it in
+     * alongside the transition made the transition itself slower — it was
+     * competing with the fly-in for the same frames, and the ease never
+     * finished (it stalled at 0.94). Landing first and sharpening after also
+     * reads better: the part settles, then comes into focus. */
+    var wantSuper = this.selMix > 0.98 ? 1 : 0;
+    this.superMix += (wantSuper - this.superMix) * 0.06;
+    wanted *= 1 + this.superMix * (this.superNow - 1);
     this.renderScale += (wanted - this.renderScale) * 0.2;
     this.renderer.renderScale = this.renderScale;
 
@@ -991,9 +1028,64 @@
         var sorted = this.frameTimes.slice().sort(function (a, b) { return a - b; });
         var med = sorted[sorted.length >> 1];
         this.frameMedian = med;
-        if (med > 21 && this.perfScale > 0.5) this.perfScale -= 0.05;
-        else if (med < 17.6 && this.perfScale < 1) this.perfScale += 0.02;
+        /* Priority ladder. The inspector bonus is given up FIRST, before the
+         * baseline resolution of the page is touched: a sharper close-up is
+         * worth less than the whole page holding 60.
+         *
+         * Headroom cannot be read off the frame time. On a 60 Hz display a
+         * frame that finishes in 4 ms and one that finishes in 15 both report
+         * 16.7, so a rule like `climb while median < 15.4` never fires and the
+         * quality just sits wherever it started. The only thing actually
+         * observable is whether vsync is still being met, so this climbs one
+         * step at a time while it is, and drops hard the moment it is not.
+         * Same failure as timing the rAF callback body: the instrument could
+         * not see the thing it was supposed to control. */
+        /* Only a SETTLED inspector may move the ladder. Opening one flies the
+         * camera, scatters ten parts and resizes every render target, and the
+         * frames that costs are not evidence about the steady state. Letting
+         * them count knocked the quality to the floor and left it there. */
+        var inspecting = this.selMix > 0.98;
+        this.superHold++;
+        /* The bonus is judged against a TIGHTER bar than the page is. 20.5 ms
+         * is where the baseline has to be protected; a close-up that has
+         * merely stopped locking to vsync has already stopped being worth what
+         * it costs, and 19.4 ms with the odd dropped frame is exactly that. */
+        if (inspecting && med > 18.8 && this.superStep > 0 && this.superHold > 120) {
+          this.superStep--;
+          this.superCeil = this.superStep;
+          this.superHold = 0;
+          this.frameTimes.length = 0;
+        } else if (med > 20.5) {
+          if (inspecting && this.superStep > 0) {
+            this.superStep--;
+            this.superCeil = this.superStep;      // ratchet: never try that step again
+            this.superHold = 0;
+            this.frameTimes.length = 0;
+          } else if (!inspecting && this.perfScale > 0.5) {
+            this.perfScale -= 0.05;
+          }
+        } else if (med < 17.6 && this.perfScale < 1) {
+          this.perfScale += 0.02;
+        } else if (inspecting && med <= 17.6 && this.perfScale >= 1 &&
+                   this.superStep < this.superCeil && this.superHold > 150) {
+          this.superStep++;
+          this.superHold = 0;
+          this.frameTimes.length = 0;             // the resize spike is not evidence
+        } else if (inspecting && med <= 17.2 && this.superHold > 2400 &&
+                   this.superRetries > 0 && this.superCeil < SUPER_STEPS.length - 1) {
+          /* The ratchet can rust open again. A permanent ceiling means one
+           * transient stall — another app waking up, a GC, the machine still
+           * warm from the last thing — silently caps the quality for the rest
+           * of the visit. Fifteen unbroken seconds at vsync is enough evidence
+           * that whatever caused it has gone. Rationed, though: re-probing on
+           * a timer forever means the picture visibly changes sharpness every
+           * time it happens, which is worse than settling slightly low. */
+          this.superCeil++;
+          this.superRetries--;
+          this.superHold = 0;
+        }
         this.perfScale = clamp(this.perfScale, 0.5, 1);
+        this.superNow = SUPER_STEPS[clamp(this.superStep, 0, SUPER_STEPS.length - 1)];
       }
     }
   };
@@ -1019,6 +1111,8 @@
           dprCap: r.dprCap,
           renderScale: +self.renderScale.toFixed(3),
           perfScale: +self.perfScale.toFixed(3),
+          superSample: +self.superNow.toFixed(2),
+          superStep: self.superStep,
           frameMedian: self.frameMedian ? +self.frameMedian.toFixed(1) : null,
           samples: r.samples,
           reveal: +self.reveal.toFixed(3),

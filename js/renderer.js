@@ -81,9 +81,17 @@
     return { p: p, u: u };
   }
 
-  /* Engraving atlas — generated with Canvas2D so the build stays image-free. */
+  /* Engraving atlas — generated with Canvas2D so the build stays image-free.
+   *
+   * 2048x128 was sized for the band at arm's length. In the inspector the
+   * band fills the frame and the wordmark was a smear: only about a sixth of
+   * the circumference is visible at once, so 2048 across the whole cylinder
+   * leaves roughly 340 texels covering 400 pixels. Doubling both axes puts
+   * it back above 1:1, and anisotropic filtering matters more than the size
+   * does, because this texture is almost always seen raking around a
+   * cylinder, which is the exact case trilinear filtering blurs away. */
   function makeMarkTexture(gl) {
-    var W = 2048, H = 128;
+    var W = 4096, H = 256;
     var c = document.createElement("canvas");
     c.width = W; c.height = H;
     var x = c.getContext("2d");
@@ -91,14 +99,14 @@
     x.fillStyle = "#fff";
     x.textAlign = "center";
     x.textBaseline = "middle";
-    x.font = "600 44px 'Archivo', 'Helvetica Neue', Arial, sans-serif";
+    x.font = "600 92px 'Archivo', 'Helvetica Neue', Arial, sans-serif";
     // four repeats so the wordmark wraps evenly around the band
     var marks = ["MERIDIAN  ONE", "8192  LEVELS", "MERIDIAN  ONE", "TILT  60°"];
     for (var i = 0; i < 4; i++) {
       x.save();
       x.translate(W * (i + 0.5) / 4, H / 2);
       x.setTransform(1, 0, 0, 1, W * (i + 0.5) / 4, H / 2);
-      x.fillText(marks[i], 0, 2);
+      x.fillText(marks[i], 0, 4);
       x.restore();
     }
     var t = gl.createTexture();
@@ -109,6 +117,11 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    var aniso = gl.getExtension("EXT_texture_filter_anisotropic");
+    if (aniso) {
+      var maxA = gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+      gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(16, maxA));
+    }
     return t;
   }
 
@@ -328,7 +341,12 @@
     var cssW = Math.max(1, Math.round(rect.width));
     var cssH = Math.max(1, Math.round(rect.height));
     var dpr = Math.min(this.dprCap, global.devicePixelRatio || 1);
-    var scale = dpr * this.renderScale;
+    /* Quantised to sixteenths. The backing store is reallocated whenever its
+     * pixel size changes, and a continuously-lerped scale changes it on every
+     * single frame of every transition. Snapping the SCALE (not w and h
+     * separately) keeps the buffer aspect locked to the projection aspect,
+     * which is the contract the whole render path depends on. */
+    var scale = Math.round(dpr * this.renderScale * 16) / 16;
     var w = Math.max(2, Math.round(cssW * scale));
     var h = Math.max(2, Math.round(cssH * scale));
 
@@ -383,6 +401,7 @@
     gl.uniform2f(S.u.uSolo, pose.soloPart === undefined ? -1 : pose.soloPart, pose.soloMix || 0);
     gl.uniform2f(S.u.uHover, pose.hoverPart === undefined ? -1 : pose.hoverPart, pose.hoverAmt || 0);
     gl.uniform1f(S.u.uInside, pose.soloMix || 0);
+    gl.uniform1f(S.u.uDetail, pose.detail || 0);
 
     /* Backface culling has to come off while the wedge is open. The far inside
      * wall of the shell is a backface, and with culling on the cutaway shows

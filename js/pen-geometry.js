@@ -23,7 +23,10 @@
 (function (global) {
   "use strict";
 
-  var RADIAL = 144;          // divisible by 24 (knurl), 16, 12, 8, 6
+  /* 144 was chosen for the whole pen at arm's length. The inspector puts ONE
+   * part across the frame, where 144 segments is about six pixels each and the
+   * silhouette reads as a polygon. 216 keeps every divisor that matters. */
+  var RADIAL = 216;          // divisible by 24 (knurl), 12, 8, 6
   var LENGTH = 152;
   var KNURL_AROUND = 24;     // diamonds around the circumference
   /* A real pen is about 14:1. On screen that reads spindly, so the body is
@@ -258,7 +261,9 @@
    * PARTS  7 sensor          8 PCB   9  cell   10 port
    */
   function buildTube(y0, y1, r0, r1, zone, part, seg, cap) {
-    var RS = 40;
+    // internals are small and few, so density here is nearly free; at 40 the
+    // sensor cone was visibly a polygon the moment it filled the frame
+    var RS = 120;
     var rings = [];
     if (cap) rings.push({ y: y0, r: 0.001 });
     for (var i = 0; i <= seg; i++) {
