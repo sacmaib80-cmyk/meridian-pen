@@ -3,7 +3,7 @@
 เว็บขายปากกาดิจิทัล แบบ scroll-driven 3D เรนเดอร์สดด้วย WebGL2
 
 ```
-cd d:/git/meridian-pen
+cd meridian-pen
 node scripts/serve.cjs 4180      →  http://127.0.0.1:4180/
 ```
 
@@ -180,7 +180,7 @@ node scripts/res-test.cjs  # เพดาน resolution จริง
 node scripts/framing.cjs   # ปากกากินเฟรมกี่ % ต่อบท
 node scripts/shot-ink.cjs  # ถ่ายหมึก (ต้อง scroll จริง ไม่ใช่ jump)
 
-# วัดเว็บอ้างอิง (เครื่องมือใน d:/git/webstudy)
+# วัดเว็บอ้างอิง (เครื่องมือในเรโป webstudy)
 node ../webstudy/probe.js at-work https://activetheory.net/work
 node ../webstudy/probe.js iyo https://www.iyo.ai/iyo-one
 ```
@@ -230,8 +230,6 @@ node ../webstudy/probe.js iyo https://www.iyo.ai/iyo-one
 
 - ปุ่ม Reserve ยังเป็น `href="#order-form"` ยังไม่มีฟอร์มจริง / ยังไม่ต่อระบบจ่ายเงิน
 - สเปกกับราคาเป็นตัวอย่าง ยังไม่ใช่สินค้าจริง
-- ยังไม่ได้ deploy
-- ยังไม่ commit
 
 
 ---
